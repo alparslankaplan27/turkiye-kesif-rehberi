@@ -108,8 +108,14 @@ h2{font-size:1.15rem;margin:24px 0 10px;font-weight:800}
 .panel h3{margin:0 0 6px;font-size:1.15rem}
 .panel p{margin:6px 0;color:var(--muted)}
 .links{display:flex;flex-direction:column;gap:8px;margin:10px 0 4px}
-.links a{display:flex;justify-content:space-between;align-items:center;gap:8px;text-decoration:none;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-weight:600;font-size:.92rem;word-break:break-word}
-.links a small{color:var(--muted);font-weight:400;white-space:nowrap}
+.links a{display:flex;flex-direction:column;gap:2px;text-decoration:none;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:9px 11px;font-weight:600;font-size:.88rem;overflow-wrap:anywhere}
+.links a small{color:var(--muted);font-weight:400;font-size:.76rem}
+.panel .metin{color:var(--ink);font-size:.92rem;line-height:1.55}
+.panel a{color:var(--cobalt)}
+.yerler{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.yer{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:9px 11px;display:flex;flex-direction:column;gap:2px;font-size:.9rem;overflow-wrap:anywhere}
+.yer small{color:var(--muted)}
+.yerlink{font-size:.8rem}
 .panel h4{margin:14px 0 2px;font-size:1rem}
 .panel .fine{font-size:.82rem}
 .stage{display:inline-block;margin-top:8px;font-size:.82rem;border:1px dashed var(--turq);color:var(--turq);border-radius:999px;padding:4px 10px}
@@ -192,7 +198,7 @@ nav.bottom button.on{color:var(--cobalt);font-weight:600}
   <p>Bu, Türkiye Keşif Rehberi’nin ilk çalışan prototipidir.</p>
   <p><b style="color:var(--ink)">Harita</b> OpenStreetMap verileriyle gösterilir (© OpenStreetMap katkıda bulunanlar, ODbL lisansı). Mavi noktalar il merkezlerinin yaklaşık konumlarıdır.</p>
   <p><b style="color:var(--ink)">973 ilçenin tamamı</b> yüklüdür. Liste, T.C. İçişleri Bakanlığı’nın mülki idare bölümleri envanterindeki 81 il ve 973 ilçe toplamıyla uyumludur. Merkez ilçeler “İl adı Merkez” biçiminde gösterilir. Yeni bir ilçe kurulursa liste güncellenmelidir.</p>
-  <p>İşletme, Instagram ve yerel bilgi bölümleri henüz bağlanmadı. Gerçek veri gelene kadar bu bölümlerde uydurma sonuç gösterilmez.</p>
+  <p><b style="color:var(--ink)">İçerik kaynakları:</b> Tarihçe Türkçe Vikipedi’den (CC BY-SA 4.0), tarihî yerler, aktiviteler ve pazar yerleri OpenStreetMap’ten (ODbL) alınır. Yöresel ürünler için Türk Patent ve Marka Kurumu’nun Coğrafi İşaret Portalı’na yönlendirilir. Instagram ve X içerikleri uygulamaya çekilmez, yalnızca arama bağlantısı verilir. İşletme bölümleri henüz bağlanmadı; gerçek veri gelene kadar uydurma sonuç gösterilmez.</p>
   <p><b style="color:var(--ink)">Konum:</b> Yalnızca “Konumumu bul” düğmesine bastığınızda istenir. Bulunduğunuz ilçeyi tespit etmek için koordinatlar bir kez OpenStreetMap’in Nominatim hizmetine gönderilir. Konumunuz uygulamada saklanmaz.</p>
 </section>
 </div>
@@ -403,6 +409,115 @@ function openDetail(catId="restoran"){
   KAT.forEach(k=>{const b=document.createElement("button");b.className="chip";b.setAttribute("role","tab");b.dataset.id=k.id;b.textContent=`${k.ik} ${k.ad}`;b.onclick=()=>showCat(k.id);tabs.appendChild(b)});
   show("detail"); showCat(catId);
 }
+// ==== AŞAMA 8: Vikipedi + OpenStreetMap içerikleri ====
+const esc=t=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ob={oku(k,gun){try{const v=JSON.parse(localStorage.getItem(k));if(v&&Date.now()-v.t<gun*864e5)return v.d}catch(e){}return null},
+          yaz(k,d){try{localStorage.setItem(k,JSON.stringify({t:Date.now(),d}))}catch(e){}}};
+let panelSira=0;
+const yukleniyor=(baslik)=>`<h3>${baslik}</h3><p>Yükleniyor…</p>`;
+
+// --- Vikipedi
+const WIKI="https://tr.wikipedia.org";
+async function wikiBul(il,ilce){
+  const k=`wiki:${il}:${ilce}`; const c=ob.oku(k,7); if(c!==null) return c;
+  const adaylar=ilce==="Merkez"?[`Merkez, ${il}`,il]:[`${ilce}, ${il}`,ilce];
+  let sonuc=false;
+  for(const t of adaylar){
+    try{
+      const r=await fetch(`${WIKI}/api/rest_v1/page/summary/${encodeURIComponent(t.replace(/ /g,"_"))}?redirect=true`);
+      if(!r.ok) continue;
+      const j=await r.json();
+      if(j.type!=="standard") continue;
+      if(!norm((j.extract||"")+" "+(j.description||"")).includes(norm(il))) continue;
+      sonuc={baslik:j.titles?.canonical||j.title,gorunen:j.title,ozet:j.extract||"",url:j.content_urls?.mobile?.page||j.content_urls?.desktop?.page};
+      try{
+        const s=await (await fetch(`${WIKI}/w/api.php?action=parse&page=${encodeURIComponent(sonuc.baslik)}&prop=sections&format=json&origin=*`)).json();
+        const sec=(s.parse?.sections||[]).find(x=>/^tarih/i.test(x.line.replace(/<[^>]+>/g,"")));
+        if(sec){
+          const h=await (await fetch(`${WIKI}/w/api.php?action=parse&page=${encodeURIComponent(sonuc.baslik)}&section=${sec.index}&prop=text&format=json&origin=*`)).json();
+          const doc=new DOMParser().parseFromString(h.parse?.text?.["*"]||"","text/html");
+          const p=[...doc.querySelectorAll("p")].map(x=>x.textContent.replace(/\[\d+\]|\[kaynak belirtilmeli\]/g,"").trim()).filter(x=>x.length>40);
+          let metin="";for(const x of p){if((metin+x).length>1400)break;metin+=(metin?"\n\n":"")+x}
+          if(!metin&&p[0]) metin=p[0].slice(0,1400)+"…";
+          sonuc.tarihce=metin;
+        }
+      }catch(e){}
+      break;
+    }catch(e){}
+  }
+  ob.yaz(k,sonuc); return sonuc;
+}
+const wikiDipnot=w=>`<p class="fine">Kaynak: <a href="${esc(w.url)}" target="_blank" rel="noopener">Vikipedi – ${esc(w.gorunen)}</a> (CC BY-SA 4.0). Vikipedi gönüllüler tarafından yazılır; önemli bilgileri resmî kaynaklardan doğrulayın.</p>`;
+async function tarihcePanel(sira){
+  const {il,ilce}=state; const ad=gor(ilce,il);
+  const w=await wikiBul(il,ilce); if(sira!==panelSira) return;
+  if(!w){$("panel").innerHTML=`<h3>📜 ${esc(ad)} tarihçesi</h3><p>Bu ilçe için güvenilir bir Vikipedi maddesi bulunamadı. Uydurma bilgi göstermemek için bu bölüm boş bırakıldı.</p>`;return}
+  const govde=(w.tarihce||w.ozet).split("\n\n").map(x=>`<p class="metin">${esc(x)}</p>`).join("");
+  $("panel").innerHTML=`<h3>📜 ${esc(ad)} tarihçesi</h3>${govde}${w.tarihce?"":`<p class="fine">Bu maddede ayrı bir tarih bölümü yok; genel özet gösteriliyor.</p>`}${wikiDipnot(w)}`;
+}
+
+// --- OpenStreetMap (Overpass)
+const TARIHI={castle:"Kale",fort:"Kale",ruins:"Ören yeri",archaeological_site:"Arkeolojik alan",monument:"Anıt",mosque:"Tarihî cami",church:"Tarihî kilise",
+  tomb:"Türbe",city_gate:"Tarihî kapı",aqueduct:"Su kemeri",bridge:"Tarihî köprü",building:"Tarihî yapı",caravanserai:"Kervansaray",citywalls:"Surlar",
+  fountain:"Tarihî çeşme",palace:"Saray",manor:"Konak",monastery:"Manastır",heritage:"Tarihî miras",castle_wall:"Surlar",hammam:"Hamam",synagogue:"Sinagog",tower:"Tarihî kule",memorial:"Anıt"};
+const AKT={attraction:"Gezilecek yer",viewpoint:"Seyir noktası",theme_park:"Tema parkı",zoo:"Hayvanat bahçesi",aquarium:"Akvaryum",
+  park:"Park",nature_reserve:"Doğa koruma alanı",water_park:"Su parkı",beach_resort:"Plaj tesisi",beach:"Plaj",waterfall:"Şelale",cave_entrance:"Mağara",peak:"Zirve"};
+const OVERPASS="https://overpass-api.de/api/interpreter";
+function poiSorgu(f){return `(nwr["historic"]["name"]${f};nwr["tourism"~"^(museum|attraction|viewpoint|theme_park|zoo|aquarium)$"]["name"]${f};nwr["leisure"~"^(park|nature_reserve|water_park|beach_resort)$"]["name"]${f};nwr["natural"~"^(beach|waterfall|cave_entrance|peak)$"]["name"]${f};nwr["amenity"="marketplace"]["name"]${f};nwr["shop"="farm"]["name"]${f};)->.p;.p out center tags 500;`}
+async function overpass(q){
+  const r=await fetch(OVERPASS,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"data="+encodeURIComponent(q)});
+  if(!r.ok) throw new Error("HTTP "+r.status); return (await r.json()).elements||[];
+}
+async function osmYerler(il,ilce){
+  const k=`osm:${il}:${ilce}`; const c=ob.oku(k,7); if(c) return c;
+  const ilQ=il.replace(/"/g,"");
+  const relFiltre=ilce==="Merkez"?`["name"~"^(${ilQ} )?Merkez$"]`:`["name"="${ilce.replace(/"/g,"")}"]`;
+  let el=await overpass(`[out:json][timeout:25];area["boundary"="administrative"]["admin_level"="4"]["name"="${ilQ}"]->.il;rel["boundary"="administrative"]["admin_level"="6"]${relFiltre}(area.il)->.r;.r out ids;.r map_to_area->.a;${poiSorgu("(area.a)")}`);
+  const sinirVar=el.some(e=>e.type==="relation"&&!e.tags);
+  if(!sinirVar){
+    const ad=ilce==="Merkez"?il:ilce;
+    const res=await nomi(`search?format=jsonv2&limit=1&countrycodes=tr&q=${encodeURIComponent(ad+", "+il+", Türkiye")}`);
+    if(!res.length) throw new Error("konum yok");
+    el=await overpass(`[out:json][timeout:25];${poiSorgu(`(around:6000,${(+res[0].lat).toFixed(4)},${(+res[0].lon).toFixed(4)})`)}`);
+  }
+  const yerler=el.filter(e=>e.tags&&e.tags.name).map(e=>{
+    const t=e.tags; const lat=e.lat??e.center?.lat, lon=e.lon??e.center?.lon;
+    let grup=null,tur="";
+    if(t.amenity==="marketplace"||t.shop==="farm"){grup="yoresel";tur=t.amenity==="marketplace"?"Pazar yeri":"Üretici satış noktası"}
+    else if(t.tourism==="museum"){grup="tarihi";tur="Müze"}
+    else if(t.historic&&TARIHI[t.historic]&&(t.historic!=="memorial"||t.wikidata)){grup="tarihi";tur=TARIHI[t.historic]}
+    else if(AKT[t.tourism]||AKT[t.leisure]||AKT[t.natural]){
+      if(t.natural==="peak"&&!t.wikidata) return null;
+      if(t.leisure==="park"&&!t.wikidata&&!t.tourism) {grup="aktivite";tur="Park"} else {grup="aktivite";tur=AKT[t.tourism]||AKT[t.leisure]||AKT[t.natural]}
+    }
+    if(!grup||lat==null) return null;
+    const wp=(t.wikipedia||"").startsWith("tr:")?t.wikipedia.slice(3):null;
+    return {grup,tur,ad:t["name:tr"]||t.name,lat,lon,wp,puan:(t.wikidata?3:0)+(wp?2:0)+(t.tourism?1:0)+(t.heritage?1:0)};
+  }).filter(Boolean);
+  const tekil={};yerler.forEach(y=>{const kk=y.grup+norm(y.ad);if(!tekil[kk]||tekil[kk].puan<y.puan)tekil[kk]=y});
+  const out=Object.values(tekil).sort((a,b)=>b.puan-a.puan||a.ad.localeCompare(b.ad,"tr"));
+  ob.yaz(k,out); return out;
+}
+function yerListesi(arr,limit){
+  return `<div class="yerler">${arr.slice(0,limit).map(y=>`<div class="yer"><b>${esc(y.ad)}</b><small>${esc(y.tur)}</small><span class="yerlink"><a href="https://www.google.com/maps/dir/?api=1&destination=${y.lat},${y.lon}" target="_blank" rel="noopener">Yol tarifi ↗</a>${y.wp?` · <a href="${WIKI}/wiki/${encodeURIComponent(y.wp.replace(/ /g,"_"))}" target="_blank" rel="noopener">Vikipedi ↗</a>`:""}</span></div>`).join("")}</div>${arr.length>limit?`<p class="fine">Toplam ${arr.length} yer bulundu, en bilinen ${limit} tanesi gösteriliyor.</p>`:""}`;
+}
+const osmDipnot=`<p class="fine">Veri: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> katkıda bulunanlar (ODbL). Gönüllülerin girdiği bilgilerdir; eksik olabilir. Gitmeden önce açık olup olmadığını kontrol edin.</p>`;
+async function osmPanel(id,sira){
+  const {il,ilce}=state; const ad=gor(ilce,il); const k=KAT.find(c=>c.id===id);
+  let yer;
+  try{yer=await osmYerler(il,ilce)}catch(e){if(sira===panelSira)$("panel").innerHTML=`<h3>${k.ik} ${esc(k.t)}</h3><p>Harita verisine şu an ulaşılamadı. Biraz sonra tekrar deneyin.</p>`;return}
+  if(sira!==panelSira) return;
+  const liste=yer.filter(y=>y.grup===id);
+  let govde="";
+  if(id==="yoresel"){
+    govde=`<h4>Tescilli yöresel ürünler</h4><p class="metin">Türkiye’de coğrafi işaretli (tescilli) yöresel ürünlerin resmî kaydı Türk Patent ve Marka Kurumu’ndadır. Bu sayfada il veya ilçe adıyla arama yapabilirsiniz.</p><div class="links"><a href="https://ci.turkpatent.gov.tr/" target="_blank" rel="noopener">Coğrafi İşaret Portalı<small>Türk Patent ↗</small></a></div>
+    <h4>Pazar yerleri ve üretici satış noktaları</h4>`+(liste.length?yerListesi(liste,10):`<p class="metin">${esc(ad)} için haritada kayıtlı pazar yeri veya üretici satış noktası bulunamadı.</p>`);
+  }else{
+    govde=liste.length?yerListesi(liste,12):`<p class="metin">${esc(ad)} için haritada kayıtlı ${id==="tarihi"?"tarihî yer veya müze":"gezi ve aktivite noktası"} bulunamadı. Uydurma sonuç gösterilmez.</p>`;
+  }
+  $("panel").innerHTML=`<h3>${k.ik} ${esc(ad)}: ${esc(k.ad.toLocaleLowerCase("tr"))}</h3>${govde}${osmDipnot}`;
+}
+
 function sosyalPanel(){
   const ad=state.ilce==="Merkez"?state.il:state.ilce, il=state.il;
   const asc=t=>norm(t).replace(/[^a-z0-9]/g,"");
@@ -419,7 +534,10 @@ function sosyalPanel(){
 function showCat(id){
   const k=KAT.find(c=>c.id===id);
   document.querySelectorAll("#tabs .chip").forEach(b=>{const on=b.dataset.id===id;b.classList.toggle("on",on);b.setAttribute("aria-selected",on)});
+  const sira=++panelSira;
   if(id==="insta"){$("panel").innerHTML=sosyalPanel();return}
+  if(id==="tarihce"){$("panel").innerHTML=yukleniyor(`${k.ik} ${esc(k.t)}`);tarihcePanel(sira);return}
+  if(id==="tarihi"||id==="aktivite"||id==="yoresel"){$("panel").innerHTML=yukleniyor(`${k.ik} ${esc(k.t)}`);osmPanel(id,sira);return}
   $("panel").innerHTML=`<h3>${k.ik} ${k.t}</h3><p>${gor(state.ilce,state.il)} için bu bölüm henüz bağlanmadı. Burada ${KAYNAK[k.a]} gösterilecek.</p><p>Gerçek veri gelene kadar uydurma sonuç gösterilmez.</p><span class="stage">Aşama ${k.a}’da eklenecek</span>`;
 }
 $("explore").onclick=()=>openDetail();
