@@ -478,7 +478,20 @@ async function overpass(q){
   }
   throw new Error(son);
 }
+const ilDosya={};
+async function hazirVeri(il,ilce){
+  const kod=String(IL.find(i=>i[1]===il)[0]).padStart(2,"0");
+  if(!(kod in ilDosya)){
+    try{const r=await fetch(`data/osm/${kod}.json`,{cache:"no-cache"});ilDosya[kod]=r.ok?await r.json():null}catch(e){ilDosya[kod]=null}
+  }
+  const d=ilDosya[kod]; if(!d) return null;
+  const anahtarlar=ilce==="Merkez"?[norm(il),norm(il+" merkez"),"merkez"]:[norm(ilce)];
+  const bul=anahtarlar.map(a=>d.ilceler[a]).find(Boolean);
+  if(!bul) return null;
+  return bul.yerler.map(([grup,ad,tur,lat,lon,puan,wp])=>({grup,ad,tur,lat,lon,puan,wp}));
+}
 async function osmYerler(il,ilce){
+  const hazir=await hazirVeri(il,ilce); if(hazir) return hazir;
   const k=`osm:${il}:${ilce}`; const c=ob.oku(k,7); if(c) return c;
   const ilQ=il.replace(/"/g,"");
   const relFiltre=ilce==="Merkez"?`["name"~"^(${ilQ}( Merkez)?|Merkez)$"]`:`["name"="${ilce.replace(/"/g,"")}"]`;
