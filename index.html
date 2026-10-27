@@ -462,17 +462,28 @@ const TARIHI={castle:"Kale",fort:"Kale",ruins:"Ören yeri",archaeological_site:"
   fountain:"Tarihî çeşme",palace:"Saray",manor:"Konak",monastery:"Manastır",heritage:"Tarihî miras",castle_wall:"Surlar",hammam:"Hamam",synagogue:"Sinagog",tower:"Tarihî kule",memorial:"Anıt"};
 const AKT={attraction:"Gezilecek yer",viewpoint:"Seyir noktası",theme_park:"Tema parkı",zoo:"Hayvanat bahçesi",aquarium:"Akvaryum",
   park:"Park",nature_reserve:"Doğa koruma alanı",water_park:"Su parkı",beach_resort:"Plaj tesisi",beach:"Plaj",waterfall:"Şelale",cave_entrance:"Mağara",peak:"Zirve"};
-const OVERPASS="https://overpass-api.de/api/interpreter";
+const OVERPASS=["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter","https://overpass.private.coffee/api/interpreter"];
 function poiSorgu(f){return `(nwr["historic"]["name"]${f};nwr["tourism"~"^(museum|attraction|viewpoint|theme_park|zoo|aquarium)$"]["name"]${f};nwr["leisure"~"^(park|nature_reserve|water_park|beach_resort)$"]["name"]${f};nwr["natural"~"^(beach|waterfall|cave_entrance|peak)$"]["name"]${f};nwr["amenity"="marketplace"]["name"]${f};nwr["shop"="farm"]["name"]${f};)->.p;.p out center tags 500;`}
 async function overpass(q){
-  const r=await fetch(OVERPASS,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"data="+encodeURIComponent(q)});
-  if(!r.ok) throw new Error("HTTP "+r.status); return (await r.json()).elements||[];
+  let son="";
+  for(const u of OVERPASS){
+    try{
+      const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),30000);
+      const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"data="+encodeURIComponent(q),signal:ctl.signal});
+      clearTimeout(t);
+      if(r.status===400){son="sorgu hatası (400)";break}
+      if(!r.ok){son="HTTP "+r.status;continue}
+      return (await r.json()).elements||[];
+    }catch(e){son=e.name==="AbortError"?"zaman aşımı":"bağlantı hatası"}
+  }
+  throw new Error(son);
 }
 async function osmYerler(il,ilce){
   const k=`osm:${il}:${ilce}`; const c=ob.oku(k,7); if(c) return c;
   const ilQ=il.replace(/"/g,"");
-  const relFiltre=ilce==="Merkez"?`["name"~"^(${ilQ} )?Merkez$"]`:`["name"="${ilce.replace(/"/g,"")}"]`;
-  let el=await overpass(`[out:json][timeout:25];area["boundary"="administrative"]["admin_level"="4"]["name"="${ilQ}"]->.il;rel["boundary"="administrative"]["admin_level"="6"]${relFiltre}(area.il)->.r;.r out ids;.r map_to_area->.a;${poiSorgu("(area.a)")}`);
+  const relFiltre=ilce==="Merkez"?`["name"~"^(${ilQ}( Merkez)?|Merkez)$"]`:`["name"="${ilce.replace(/"/g,"")}"]`;
+  let el=[];
+  try{el=await overpass(`[out:json][timeout:25];area["boundary"="administrative"]["admin_level"="4"]["name"="${ilQ}"]->.il;rel["boundary"="administrative"]["admin_level"="6"]${relFiltre}(area.il)->.r;.r out ids;.r map_to_area->.a;${poiSorgu("(area.a)")}`)}catch(e){el=[]}
   const sinirVar=el.some(e=>e.type==="relation"&&!e.tags);
   if(!sinirVar){
     const ad=ilce==="Merkez"?il:ilce;
@@ -505,7 +516,7 @@ const osmDipnot=`<p class="fine">Veri: © <a href="https://www.openstreetmap.org
 async function osmPanel(id,sira){
   const {il,ilce}=state; const ad=gor(ilce,il); const k=KAT.find(c=>c.id===id);
   let yer;
-  try{yer=await osmYerler(il,ilce)}catch(e){if(sira===panelSira)$("panel").innerHTML=`<h3>${k.ik} ${esc(k.t)}</h3><p>Harita verisine şu an ulaşılamadı. Biraz sonra tekrar deneyin.</p>`;return}
+  try{yer=await osmYerler(il,ilce)}catch(e){if(sira===panelSira)$("panel").innerHTML=`<h3>${k.ik} ${esc(k.t)}</h3><p>Harita verisine şu an ulaşılamadı. Biraz sonra tekrar deneyin.</p><p class="fine">Teknik ayrıntı: ${esc(e.message||"bilinmiyor")}</p><button class="btn btn-ghost" onclick="showCat('${id}')">Tekrar dene</button>`;return}
   if(sira!==panelSira) return;
   const liste=yer.filter(y=>y.grup===id);
   let govde="";
