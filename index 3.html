@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Türkiye Keşif Rehberi</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF3F7; --surface:#FFFFFF; --ink:#14213D; --muted:#5B6B82;
+  --cobalt:#1F4E9C; --turq:#13848A; --red:#B8352A; --line:#D5DEE8;
+  --land:#DCE7F1; --land-stroke:#9FB4CC; --sea:#E6EEF5;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1626; --surface:#15213A; --ink:#E7EEF7; --muted:#9AAAC2;
+    --cobalt:#7EA6EE; --turq:#45BEC2; --red:#EF7A6C; --line:#26344F;
+    --land:#1E2D4A; --land-stroke:#3C5378; --sea:#111C31;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1626; --surface:#15213A; --ink:#E7EEF7; --muted:#9AAAC2;
+  --cobalt:#7EA6EE; --turq:#45BEC2; --red:#EF7A6C; --line:#26344F;
+  --land:#1E2D4A; --land-stroke:#3C5378; --sea:#111C31;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);
+  font-family:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:16px;line-height:1.45;-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--turq);outline-offset:2px}
+.wrap{max-width:560px;margin:0 auto;padding:16px 16px 110px}
+.view[hidden]{display:none}
+
+/* Başlık */
+.brand{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:4px 0 14px}
+.brand h1{font-size:1.65rem;font-weight:800;letter-spacing:-.02em;line-height:1.05;margin:0}
+.brand h1 span{display:block;font-weight:400;font-size:.95rem;color:var(--muted);letter-spacing:0;margin-top:4px}
+.badge{font-size:.75rem;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 9px;white-space:nowrap}
+
+/* Harita */
+.map{border-radius:20px;overflow:hidden;isolation:isolate;border:1px solid var(--line)}
+#map{height:340px;width:100%;background:var(--sea)}
+.leaflet-container{font-family:inherit}
+.maperr{padding:40px 16px;text-align:center;color:var(--muted)}
+
+/* Arama */
+.search{position:relative;margin-top:14px}
+.search input{width:100%;font:inherit;font-size:1rem;color:var(--ink);background:var(--surface);
+  border:1.5px solid var(--line);border-radius:14px;padding:13px 14px 13px 42px}
+.search svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:20px;height:20px;stroke:var(--muted)}
+.results{list-style:none;margin:6px 0 0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.results:empty{display:none}
+.results li button{width:100%;text-align:left;background:none;border:0;padding:12px 14px;display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--line)}
+.results li:first-child button{border-top:0}
+.results small{color:var(--muted)}
+
+.row{display:flex;gap:10px;margin-top:12px}
+.btn{border:0;border-radius:14px;padding:13px 16px;font-weight:600;font-size:1rem}
+.btn-ghost{background:var(--surface);border:1.5px solid var(--line);flex:1;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-main{background:var(--cobalt);color:#fff;flex:1}
+:root[data-theme="dark"] .btn-main{color:#0D1626}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn-main{color:#0D1626}}
+.btn-main:disabled{opacity:.4;cursor:not-allowed}
+.status{font-size:.88rem;color:var(--muted);margin:8px 2px 0;min-height:1.2em}
+
+/* Seçim */
+.picked{margin-top:16px;padding:14px 16px;background:var(--surface);border-radius:18px;border-left:5px solid var(--turq)}
+.picked .where{font-size:1.35rem;font-weight:800;letter-spacing:-.01em;line-height:1.15}
+.picked .hint{color:var(--muted);font-size:.9rem;margin-top:2px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:7px 12px;font-size:.92rem}
+.chip.on{background:var(--turq);border-color:var(--turq);color:#fff}
+.note{font-size:.85rem;color:var(--muted);margin-top:10px}
+
+h2{font-size:1.15rem;margin:24px 0 10px;font-weight:800}
+.dfilter{width:100%;font:inherit;font-size:.95rem;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-top:10px}
+.toprow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.linkbtn{background:none;border:0;color:var(--cobalt);font-weight:600;font-size:.9rem;padding:4px 0;white-space:nowrap}
+.results .more{padding:10px 14px;font-size:.85rem;color:var(--muted);border-top:1px solid var(--line)}
+.results mark{background:none;color:var(--turq);font-weight:800}
+.cats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.cat{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 6px;text-align:center;font-size:.88rem}
+.cat b{display:block;font-size:1.5rem;margin-bottom:4px;font-weight:400}
+
+/* Detay */
+.back{background:none;border:0;padding:6px 0;color:var(--cobalt);font-weight:600}
+.dhead{margin:6px 0 14px}
+.dhead h2{font-size:2rem;margin:0;line-height:1.05;letter-spacing:-.02em}
+.dhead p{margin:4px 0 0;color:var(--muted)}
+.dlayout{display:grid;grid-template-columns:minmax(0,42%) minmax(0,1fr);gap:10px;align-items:start}
+.tabs{display:flex;flex-direction:column;gap:6px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 8px)}
+.tabs .chip{width:100%;text-align:left;border-radius:12px;padding:9px 10px;font-size:.86rem;line-height:1.2;background:var(--surface)}
+.tabs .chip.on{background:var(--turq);border-color:var(--turq);color:#fff;font-weight:600}
+.panel{margin-top:0;background:var(--surface);border-radius:18px;padding:14px}
+.panel h3{margin:0 0 6px;font-size:1.15rem}
+.panel p{margin:6px 0;color:var(--muted)}
+.links{display:flex;flex-direction:column;gap:8px;margin:10px 0 4px}
+.links a{display:flex;justify-content:space-between;align-items:center;gap:8px;text-decoration:none;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-weight:600;font-size:.92rem;word-break:break-word}
+.links a small{color:var(--muted);font-weight:400;white-space:nowrap}
+.panel h4{margin:14px 0 2px;font-size:1rem}
+.panel .fine{font-size:.82rem}
+.stage{display:inline-block;margin-top:8px;font-size:.82rem;border:1px dashed var(--turq);color:var(--turq);border-radius:999px;padding:4px 10px}
+
+/* Alt menü */
+nav.bottom{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom,0px);z-index:20}
+nav.bottom .in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+nav.bottom button{background:none;border:0;padding:9px 0 10px;font-size:.75rem;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav.bottom button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+nav.bottom button.on{color:var(--cobalt);font-weight:600}
+.empty{text-align:center;padding:40px 10px;color:var(--muted)}
+.empty strong{display:block;color:var(--ink);font-size:1.1rem;margin-bottom:6px}
+.about p{color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ANA SAYFA -->
+<section class="view" id="v-home">
+  <div class="brand">
+    <h1>Türkiye Keşif Rehberi<span>81 il, her ilçesiyle</span></h1>
+    <span class="badge">Prototip</span>
+  </div>
+
+  <div class="map" id="map-anchor">
+    <div id="map" role="region" aria-label="Türkiye haritası"></div>
+  </div>
+
+  <div class="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="973 ilçe içinde ara (ör. Foça)" autocomplete="off" aria-label="İl veya ilçe ara">
+  </div>
+  <ul class="results" id="results"></ul>
+
+  <div class="row">
+    <button class="btn btn-ghost" id="locate">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+      Konumumu bul
+    </button>
+  </div>
+  <p class="status" id="status" role="status"></p>
+
+  <div class="picked" id="picked">
+    <div class="toprow"><div class="where" id="where">Henüz seçim yok</div><button class="linkbtn" id="clear" hidden>Temizle</button></div>
+    <div class="hint" id="hint">Haritadan bir il seçin veya yukarıdan arayın.</div>
+    <input id="dfilter" class="dfilter" type="search" placeholder="Bu ilin ilçelerinde ara" autocomplete="off" aria-label="Bu ilin ilçelerinde ara" hidden>
+    <div class="chips" id="districts"></div>
+    <div class="note" id="dnote" hidden></div>
+    <div class="row"><button class="btn btn-main" id="explore" disabled>Keşfet</button></div>
+  </div>
+
+  <div id="recentWrap" hidden><h2>Son baktıklarınız</h2><div class="chips" id="recent"></div></div>
+
+  <h2>Popüler kategoriler</h2>
+  <div class="cats" id="cats"></div>
+</section>
+
+<!-- İLÇE DETAY -->
+<section class="view" id="v-detail" hidden>
+  <button class="back" id="back">‹ Ana sayfa</button>
+  <div class="dhead"><h2 id="dname"></h2><p id="dprov"></p></div>
+  <div class="dlayout">
+    <div class="tabs" id="tabs" role="tablist" aria-orientation="vertical"></div>
+    <div class="panel" id="panel"></div>
+  </div>
+</section>
+
+<!-- KAYDEDİLENLER -->
+<section class="view" id="v-saved" hidden>
+  <div class="brand"><h1>Kaydedilenler</h1></div>
+  <div class="empty"><strong>Henüz kaydedilen yer yok</strong>Beğendiğiniz yerleri kaydetme özelliği sonraki aşamalarda eklenecek.</div>
+</section>
+
+<!-- HAKKINDA -->
+<section class="view about" id="v-about" hidden>
+  <div class="brand"><h1>Hakkında</h1></div>
+  <p>Bu, Türkiye Keşif Rehberi’nin ilk çalışan prototipidir.</p>
+  <p><b style="color:var(--ink)">Harita</b> OpenStreetMap verileriyle gösterilir (© OpenStreetMap katkıda bulunanlar, ODbL lisansı). Mavi noktalar il merkezlerinin yaklaşık konumlarıdır.</p>
+  <p><b style="color:var(--ink)">973 ilçenin tamamı</b> yüklüdür. Liste, T.C. İçişleri Bakanlığı’nın mülki idare bölümleri envanterindeki 81 il ve 973 ilçe toplamıyla uyumludur. Merkez ilçeler “İl adı Merkez” biçiminde gösterilir. Yeni bir ilçe kurulursa liste güncellenmelidir.</p>
+  <p>İşletme, Instagram ve yerel bilgi bölümleri henüz bağlanmadı. Gerçek veri gelene kadar bu bölümlerde uydurma sonuç gösterilmez.</p>
+  <p><b style="color:var(--ink)">Konum:</b> Yalnızca “Konumumu bul” düğmesine bastığınızda istenir. Bulunduğunuz ilçeyi tespit etmek için koordinatlar bir kez OpenStreetMap’in Nominatim hizmetine gönderilir. Konumunuz uygulamada saklanmaz.</p>
+</section>
+</div>
+
+<nav class="bottom" aria-label="Alt menü"><div class="in">
+  <button data-go="home" class="on"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Keşfet</button>
+  <button data-go="map"><svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg>Harita</button>
+  <button data-go="saved"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg>Kaydedilenler</button>
+  <button data-go="about"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>Hakkında</button>
+</div></nav>
+
+<script>
+// ---- 81 il: [plaka, ad, enlem, boylam] (il merkezlerinin yaklaşık koordinatları)
+const IL=[[1,"Adana",37.00,35.32],[2,"Adıyaman",37.76,38.28],[3,"Afyonkarahisar",38.76,30.54],[4,"Ağrı",39.72,43.05],[5,"Amasya",40.65,35.83],[6,"Ankara",39.93,32.86],[7,"Antalya",36.89,30.71],[8,"Artvin",41.18,41.82],[9,"Aydın",37.85,27.85],[10,"Balıkesir",39.65,27.88],[11,"Bilecik",40.14,29.98],[12,"Bingöl",38.88,40.50],[13,"Bitlis",38.40,42.11],[14,"Bolu",40.74,31.61],[15,"Burdur",37.72,30.29],[16,"Bursa",40.19,29.06],[17,"Çanakkale",40.15,26.41],[18,"Çankırı",40.60,33.62],[19,"Çorum",40.55,34.95],[20,"Denizli",37.78,29.09],[21,"Diyarbakır",37.91,40.24],[22,"Edirne",41.68,26.56],[23,"Elazığ",38.67,39.22],[24,"Erzincan",39.75,39.49],[25,"Erzurum",39.90,41.27],[26,"Eskişehir",39.78,30.52],[27,"Gaziantep",37.07,37.38],[28,"Giresun",40.91,38.39],[29,"Gümüşhane",40.46,39.48],[30,"Hakkari",37.58,43.74],[31,"Hatay",36.20,36.16],[32,"Isparta",37.76,30.55],[33,"Mersin",36.80,34.63],[34,"İstanbul",41.01,28.98],[35,"İzmir",38.42,27.14],[36,"Kars",40.60,43.10],[37,"Kastamonu",41.38,33.78],[38,"Kayseri",38.73,35.48],[39,"Kırklareli",41.73,27.22],[40,"Kırşehir",39.15,34.16],[41,"Kocaeli",40.77,29.92],[42,"Konya",37.87,32.48],[43,"Kütahya",39.42,29.98],[44,"Malatya",38.35,38.31],[45,"Manisa",38.61,27.43],[46,"Kahramanmaraş",37.58,36.94],[47,"Mardin",37.31,40.74],[48,"Muğla",37.22,28.36],[49,"Muş",38.74,41.49],[50,"Nevşehir",38.62,34.71],[51,"Niğde",37.97,34.68],[52,"Ordu",40.98,37.88],[53,"Rize",41.02,40.52],[54,"Sakarya",40.69,30.44],[55,"Samsun",41.29,36.33],[56,"Siirt",37.93,41.94],[57,"Sinop",42.03,35.15],[58,"Sivas",39.75,37.02],[59,"Tekirdağ",40.98,27.51],[60,"Tokat",40.31,36.55],[61,"Trabzon",41.00,39.72],[62,"Tunceli",39.11,39.55],[63,"Şanlıurfa",37.16,38.79],[64,"Uşak",38.68,29.41],[65,"Van",38.49,43.38],[66,"Yozgat",39.82,34.81],[67,"Zonguldak",41.45,31.79],[68,"Aksaray",38.37,34.03],[69,"Bayburt",40.26,40.23],[70,"Karaman",37.18,33.22],[71,"Kırıkkale",39.85,33.51],[72,"Batman",37.88,41.13],[73,"Şırnak",37.52,42.46],[74,"Bartın",41.64,32.34],[75,"Ardahan",41.11,42.70],[76,"Iğdır",39.92,44.04],[77,"Yalova",40.65,29.27],[78,"Karabük",41.20,32.62],[79,"Kilis",36.72,37.12],[80,"Osmaniye",37.07,36.25],[81,"Düzce",40.84,31.16]];
+
+// ---- 81 il, 973 ilçe (T.C. İçişleri Bakanlığı mülki idare bölümleriyle uyumlu toplam)
+const ILCE={"Adana":["Aladağ","Ceyhan","Çukurova","Feke","İmamoğlu","Karaisalı","Karataş","Kozan","Pozantı","Saimbeyli","Sarıçam","Seyhan","Tufanbeyli","Yumurtalık","Yüreğir"],"Adıyaman":["Merkez","Besni","Çelikhan","Gerger","Gölbaşı","Kahta","Samsat","Sincik","Tut"],"Afyonkarahisar":["Merkez","Başmakçı","Bayat","Bolvadin","Çay","Çobanlar","Dazkırı","Dinar","Emirdağ","Evciler","Hocalar","İhsaniye","İscehisar","Kızılören","Sandıklı","Sinanpaşa","Sultandağı","Şuhut"],"Ağrı":["Merkez","Diyadin","Doğubayazıt","Eleşkirt","Hamur","Patnos","Taşlıçay","Tutak"],"Amasya":["Merkez","Göynücek","Gümüşhacıköy","Hamamözü","Merzifon","Suluova","Taşova"],"Ankara":["Akyurt","Altındağ","Ayaş","Bala","Beypazarı","Çamlıdere","Çankaya","Çubuk","Elmadağ","Etimesgut","Evren","Gölbaşı","Güdül","Haymana","Kahramankazan","Kalecik","Keçiören","Kızılcahamam","Mamak","Nallıhan","Polatlı","Pursaklar","Sincan","Şereflikoçhisar","Yenimahalle"],"Antalya":["Akseki","Aksu","Alanya","Demre","Döşemealtı","Elmalı","Finike","Gazipaşa","Gündoğmuş","İbradı","Kaş","Kemer","Kepez","Konyaaltı","Korkuteli","Kumluca","Manavgat","Muratpaşa","Serik"],"Artvin":["Merkez","Ardanuç","Arhavi","Borçka","Hopa","Kemalpaşa","Murgul","Şavşat","Yusufeli"],"Aydın":["Bozdoğan","Buharkent","Çine","Didim","Efeler","Germencik","İncirliova","Karacasu","Karpuzlu","Koçarlı","Köşk","Kuşadası","Kuyucak","Nazilli","Söke","Sultanhisar","Yenipazar"],"Balıkesir":["Altıeylül","Ayvalık","Balya","Bandırma","Bigadiç","Burhaniye","Dursunbey","Edremit","Erdek","Gömeç","Gönen","Havran","İvrindi","Karesi","Kepsut","Manyas","Marmara","Savaştepe","Sındırgı","Susurluk"],"Bilecik":["Merkez","Bozüyük","Gölpazarı","İnhisar","Osmaneli","Pazaryeri","Söğüt","Yenipazar"],"Bingöl":["Merkez","Adaklı","Genç","Karlıova","Kiğı","Solhan","Yayladere","Yedisu"],"Bitlis":["Merkez","Adilcevaz","Ahlat","Güroymak","Hizan","Mutki","Tatvan"],"Bolu":["Merkez","Dörtdivan","Gerede","Göynük","Kıbrıscık","Mengen","Mudurnu","Seben","Yeniçağa"],"Burdur":["Merkez","Ağlasun","Altınyayla","Bucak","Çavdır","Çeltikçi","Gölhisar","Karamanlı","Kemer","Tefenni","Yeşilova"],"Bursa":["Büyükorhan","Gemlik","Gürsu","Harmancık","İnegöl","İznik","Karacabey","Keles","Kestel","Mudanya","Mustafakemalpaşa","Nilüfer","Orhaneli","Orhangazi","Osmangazi","Yenişehir","Yıldırım"],"Çanakkale":["Merkez","Ayvacık","Bayramiç","Biga","Bozcaada","Çan","Eceabat","Ezine","Gelibolu","Gökçeada","Lapseki","Yenice"],"Çankırı":["Merkez","Atkaracalar","Bayramören","Çerkeş","Eldivan","Ilgaz","Kızılırmak","Korgun","Kurşunlu","Orta","Şabanözü","Yapraklı"],"Çorum":["Merkez","Alaca","Bayat","Boğazkale","Dodurga","İskilip","Kargı","Laçin","Mecitözü","Oğuzlar","Ortaköy","Osmancık","Sungurlu","Uğurludağ"],"Denizli":["Acıpayam","Babadağ","Baklan","Bekilli","Beyağaç","Bozkurt","Buldan","Çal","Çameli","Çardak","Çivril","Güney","Honaz","Kale","Merkezefendi","Pamukkale","Sarayköy","Serinhisar","Tavas"],"Diyarbakır":["Bağlar","Bismil","Çermik","Çınar","Çüngüş","Dicle","Eğil","Ergani","Hani","Hazro","Kayapınar","Kocaköy","Kulp","Lice","Silvan","Sur","Yenişehir"],"Edirne":["Merkez","Enez","Havsa","İpsala","Keşan","Lalapaşa","Meriç","Süloğlu","Uzunköprü"],"Elazığ":["Merkez","Ağın","Alacakaya","Arıcak","Baskil","Karakoçan","Keban","Kovancılar","Maden","Palu","Sivrice"],"Erzincan":["Merkez","Çayırlı","İliç","Kemah","Kemaliye","Otlukbeli","Refahiye","Tercan","Üzümlü"],"Erzurum":["Aşkale","Aziziye","Çat","Hınıs","Horasan","İspir","Karaçoban","Karayazı","Köprüköy","Narman","Oltu","Olur","Palandöken","Pasinler","Pazaryolu","Şenkaya","Tekman","Tortum","Uzundere","Yakutiye"],"Eskişehir":["Alpu","Beylikova","Çifteler","Günyüzü","Han","İnönü","Mahmudiye","Mihalgazi","Mihalıççık","Odunpazarı","Sarıcakaya","Seyitgazi","Sivrihisar","Tepebaşı"],"Gaziantep":["Araban","İslahiye","Karkamış","Nizip","Nurdağı","Oğuzeli","Şahinbey","Şehitkamil","Yavuzeli"],"Giresun":["Merkez","Alucra","Bulancak","Çamoluk","Çanakçı","Dereli","Doğankent","Espiye","Eynesil","Görele","Güce","Keşap","Piraziz","Şebinkarahisar","Tirebolu","Yağlıdere"],"Gümüşhane":["Merkez","Kelkit","Köse","Kürtün","Şiran","Torul"],"Hakkari":["Merkez","Çukurca","Derecik","Şemdinli","Yüksekova"],"Hatay":["Altınözü","Antakya","Arsuz","Belen","Defne","Dörtyol","Erzin","Hassa","İskenderun","Kırıkhan","Kumlu","Payas","Reyhanlı","Samandağ","Yayladağı"],"Isparta":["Merkez","Aksu","Atabey","Eğirdir","Gelendost","Gönen","Keçiborlu","Senirkent","Sütçüler","Şarkikaraağaç","Uluborlu","Yalvaç","Yenişarbademli"],"Mersin":["Akdeniz","Anamur","Aydıncık","Bozyazı","Çamlıyayla","Erdemli","Gülnar","Mezitli","Mut","Silifke","Tarsus","Toroslar","Yenişehir"],"İstanbul":["Adalar","Arnavutköy","Ataşehir","Avcılar","Bağcılar","Bahçelievler","Bakırköy","Başakşehir","Bayrampaşa","Beşiktaş","Beykoz","Beylikdüzü","Beyoğlu","Büyükçekmece","Çatalca","Çekmeköy","Esenler","Esenyurt","Eyüpsultan","Fatih","Gaziosmanpaşa","Güngören","Kadıköy","Kağıthane","Kartal","Küçükçekmece","Maltepe","Pendik","Sancaktepe","Sarıyer","Silivri","Sultanbeyli","Sultangazi","Şile","Şişli","Tuzla","Ümraniye","Üsküdar","Zeytinburnu"],"İzmir":["Aliağa","Balçova","Bayındır","Bayraklı","Bergama","Beydağ","Bornova","Buca","Çeşme","Çiğli","Dikili","Foça","Gaziemir","Güzelbahçe","Karabağlar","Karaburun","Karşıyaka","Kemalpaşa","Kınık","Kiraz","Konak","Menderes","Menemen","Narlıdere","Ödemiş","Seferihisar","Selçuk","Tire","Torbalı","Urla"],"Kars":["Merkez","Akyaka","Arpaçay","Digor","Kağızman","Sarıkamış","Selim","Susuz"],"Kastamonu":["Merkez","Abana","Ağlı","Araç","Azdavay","Bozkurt","Cide","Çatalzeytin","Daday","Devrekani","Doğanyurt","Hanönü","İhsangazi","İnebolu","Küre","Pınarbaşı","Seydiler","Şenpazar","Taşköprü","Tosya"],"Kayseri":["Akkışla","Bünyan","Develi","Felahiye","Hacılar","İncesu","Kocasinan","Melikgazi","Özvatan","Pınarbaşı","Sarıoğlan","Sarız","Talas","Tomarza","Yahyalı","Yeşilhisar"],"Kırklareli":["Merkez","Babaeski","Demirköy","Kofçaz","Lüleburgaz","Pehlivanköy","Pınarhisar","Vize"],"Kırşehir":["Merkez","Akçakent","Akpınar","Boztepe","Çiçekdağı","Kaman","Mucur"],"Kocaeli":["Başiskele","Çayırova","Darıca","Derince","Dilovası","Gebze","Gölcük","İzmit","Kandıra","Karamürsel","Kartepe","Körfez"],"Konya":["Ahırlı","Akören","Akşehir","Altınekin","Beyşehir","Bozkır","Cihanbeyli","Çeltik","Çumra","Derbent","Derebucak","Doğanhisar","Emirgazi","Ereğli","Güneysınır","Hadim","Halkapınar","Hüyük","Ilgın","Kadınhanı","Karapınar","Karatay","Kulu","Meram","Sarayönü","Selçuklu","Seydişehir","Taşkent","Tuzlukçu","Yalıhüyük","Yunak"],"Kütahya":["Merkez","Altıntaş","Aslanapa","Çavdarhisar","Domaniç","Dumlupınar","Emet","Gediz","Hisarcık","Pazarlar","Simav","Şaphane","Tavşanlı"],"Malatya":["Akçadağ","Arapgir","Arguvan","Battalgazi","Darende","Doğanşehir","Doğanyol","Hekimhan","Kale","Kuluncak","Pütürge","Yazıhan","Yeşilyurt"],"Manisa":["Ahmetli","Akhisar","Alaşehir","Demirci","Gölmarmara","Gördes","Kırkağaç","Köprübaşı","Kula","Salihli","Sarıgöl","Saruhanlı","Selendi","Soma","Şehzadeler","Turgutlu","Yunusemre"],"Kahramanmaraş":["Afşin","Andırın","Çağlayancerit","Dulkadiroğlu","Ekinözü","Elbistan","Göksun","Nurhak","Onikişubat","Pazarcık","Türkoğlu"],"Mardin":["Artuklu","Dargeçit","Derik","Kızıltepe","Mazıdağı","Midyat","Nusaybin","Ömerli","Savur","Yeşilli"],"Muğla":["Bodrum","Dalaman","Datça","Fethiye","Kavaklıdere","Köyceğiz","Marmaris","Menteşe","Milas","Ortaca","Seydikemer","Ula","Yatağan"],"Muş":["Merkez","Bulanık","Hasköy","Korkut","Malazgirt","Varto"],"Nevşehir":["Merkez","Acıgöl","Avanos","Derinkuyu","Gülşehir","Hacıbektaş","Kozaklı","Ürgüp"],"Niğde":["Merkez","Altunhisar","Bor","Çamardı","Çiftlik","Ulukışla"],"Ordu":["Akkuş","Altınordu","Aybastı","Çamaş","Çatalpınar","Çaybaşı","Fatsa","Gölköy","Gülyalı","Gürgentepe","İkizce","Kabadüz","Kabataş","Korgan","Kumru","Mesudiye","Perşembe","Ulubey","Ünye"],"Rize":["Merkez","Ardeşen","Çamlıhemşin","Çayeli","Derepazarı","Fındıklı","Güneysu","Hemşin","İkizdere","İyidere","Kalkandere","Pazar"],"Sakarya":["Adapazarı","Akyazı","Arifiye","Erenler","Ferizli","Geyve","Hendek","Karapürçek","Karasu","Kaynarca","Kocaali","Pamukova","Sapanca","Serdivan","Söğütlü","Taraklı"],"Samsun":["Alaçam","Asarcık","Atakum","Ayvacık","Bafra","Canik","Çarşamba","Havza","İlkadım","Kavak","Ladik","Ondokuzmayıs","Salıpazarı","Tekkeköy","Terme","Vezirköprü","Yakakent"],"Siirt":["Merkez","Baykan","Eruh","Kurtalan","Pervari","Şirvan","Tillo"],"Sinop":["Merkez","Ayancık","Boyabat","Dikmen","Durağan","Erfelek","Gerze","Saraydüzü","Türkeli"],"Sivas":["Merkez","Akıncılar","Altınyayla","Divriği","Doğanşar","Gemerek","Gölova","Gürün","Hafik","İmranlı","Kangal","Koyulhisar","Suşehri","Şarkışla","Ulaş","Yıldızeli","Zara"],"Tekirdağ":["Çerkezköy","Çorlu","Ergene","Hayrabolu","Kapaklı","Malkara","Marmaraereğlisi","Muratlı","Saray","Süleymanpaşa","Şarköy"],"Tokat":["Merkez","Almus","Artova","Başçiftlik","Erbaa","Niksar","Pazar","Reşadiye","Sulusaray","Turhal","Yeşilyurt","Zile"],"Trabzon":["Akçaabat","Araklı","Arsin","Beşikdüzü","Çarşıbaşı","Çaykara","Dernekpazarı","Düzköy","Hayrat","Köprübaşı","Maçka","Of","Ortahisar","Sürmene","Şalpazarı","Tonya","Vakfıkebir","Yomra"],"Tunceli":["Merkez","Çemişgezek","Hozat","Mazgirt","Nazımiye","Ovacık","Pertek","Pülümür"],"Şanlıurfa":["Akçakale","Birecik","Bozova","Ceylanpınar","Eyyübiye","Halfeti","Haliliye","Harran","Hilvan","Karaköprü","Siverek","Suruç","Viranşehir"],"Uşak":["Merkez","Banaz","Eşme","Karahallı","Sivaslı","Ulubey"],"Van":["Bahçesaray","Başkale","Çaldıran","Çatak","Edremit","Erciş","Gevaş","Gürpınar","İpekyolu","Muradiye","Özalp","Saray","Tuşba"],"Yozgat":["Merkez","Akdağmadeni","Aydıncık","Boğazlıyan","Çandır","Çayıralan","Çekerek","Kadışehri","Saraykent","Sarıkaya","Sorgun","Şefaatli","Yenifakılı","Yerköy"],"Zonguldak":["Merkez","Alaplı","Çaycuma","Devrek","Ereğli","Gökçebey","Kilimli","Kozlu"],"Aksaray":["Merkez","Ağaçören","Eskil","Gülağaç","Güzelyurt","Ortaköy","Sarıyahşi","Sultanhanı"],"Bayburt":["Merkez","Aydıntepe","Demirözü"],"Karaman":["Merkez","Ayrancı","Başyayla","Ermenek","Kazımkarabekir","Sarıveliler"],"Kırıkkale":["Merkez","Bahşılı","Balışeyh","Çelebi","Delice","Karakeçili","Keskin","Sulakyurt","Yahşihan"],"Batman":["Merkez","Beşiri","Gercüş","Hasankeyf","Kozluk","Sason"],"Şırnak":["Merkez","Beytüşşebap","Cizre","Güçlükonak","İdil","Silopi","Uludere"],"Bartın":["Merkez","Amasra","Kurucaşile","Ulus"],"Ardahan":["Merkez","Çıldır","Damal","Göle","Hanak","Posof"],"Iğdır":["Merkez","Aralık","Karakoyunlu","Tuzluca"],"Yalova":["Merkez","Altınova","Armutlu","Çınarcık","Çiftlikköy","Termal"],"Karabük":["Merkez","Eflani","Eskipazar","Ovacık","Safranbolu","Yenice"],"Kilis":["Merkez","Elbeyli","Musabeyli","Polateli"],"Osmaniye":["Merkez","Bahçe","Düziçi","Hasanbeyli","Kadirli","Sumbas","Toprakkale"],"Düzce":["Merkez","Akçakoca","Cumayeri","Çilimli","Gölyaka","Gümüşova","Kaynaşlı","Yığılca"]};
+const gor=(ilce,il)=>ilce==="Merkez"?il+" Merkez":ilce;
+
+const KAT=[
+ {id:"restoran",ad:"Restoranlar",ik:"🍽️",a:6,t:"En iyi 3 restoran"},
+ {id:"otel",ad:"Oteller",ik:"🏨",a:6,t:"En iyi 3 otel"},
+ {id:"tatli",ad:"Tatlıcılar",ik:"🍮",a:6,t:"En iyi 3 tatlıcı"},
+ {id:"kafe",ad:"Kafeler",ik:"☕",a:6,t:"En iyi 3 kafe"},
+ {id:"eczane",ad:"Eczaneler",ik:"💊",a:6,t:"En iyi 3 eczane"},
+ {id:"misafir",ad:"Misafirhaneler",ik:"🛏️",a:6,t:"En iyi 3 misafirhane"},
+ {id:"insta",ad:"Instagram ve X",ik:"📸",a:7,t:"Instagram ve X gezi rehberi"},
+ {id:"yoresel",ad:"Yöresel ürünler",ik:"🧺",a:8,t:"Yöresel ürünler ve alışveriş"},
+ {id:"aktivite",ad:"Aktiviteler",ik:"🚶",a:8,t:"Yapılabilecek aktiviteler"},
+ {id:"tarihi",ad:"Tarihî yerler",ik:"🏛️",a:8,t:"Tarihî ve turistik yerler"},
+ {id:"tarihce",ad:"Tarihçe",ik:"📜",a:8,t:"İlçenin kısa tarihçesi"}
+];
+const KAYNAK={6:"Google Places üzerinden gerçek işletme verileri",7:"Instagram ve X’teki gezi aramalarına bağlantılar",8:"resmî ve güvenilir kaynaklardan derlenen bilgiler"};
+
+// ---- Türkçe uyumlu arama
+const norm=s=>s.toLocaleLowerCase("tr-TR").replace(/[çğıöşüâî]/g,c=>({"ç":"c","ğ":"g","ı":"i","ö":"o","ş":"s","ü":"u","â":"a","î":"i"}[c]));
+
+// ---- Harita (Leaflet + OpenStreetMap)
+const $=id=>document.getElementById(id);
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+let map=null; const markers={}; let ilcePin=null, konumPin=null;
+if(window.L){
+  map=L.map("map",{zoomSnap:0.5}).setView([39.0,35.2],5);
+  map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,
+    attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> katkıda bulunanlar'}).addTo(map);
+  IL.forEach(([kod,ad,lat,lon])=>{
+    const m=L.circleMarker([lat,lon],{radius:6,color:"#fff",weight:1.5,fillColor:css("--cobalt"),fillOpacity:.9}).addTo(map);
+    m.bindTooltip(ad,{direction:"top",offset:[0,-6]}); m.on("click",()=>selectIl(ad)); markers[ad]=m;
+  });
+}else{
+  $("map").innerHTML='<div class="maperr">Harita yüklenemedi. İnternet bağlantınızı kontrol edip sayfayı yenileyin. Arama ve ilçe seçimi çalışmaya devam eder.</div>';
+}
+function isaretle(ad){Object.entries(markers).forEach(([n,m])=>{const on=n===ad;m.setStyle({fillColor:on?css("--red"):css("--cobalt")});m.setRadius(on?9:6);if(on)m.bringToFront()})}
+
+// ---- OpenStreetMap Nominatim (en fazla saniyede 1 istek)
+let sonIstek=0; const nCache={};
+async function nomi(yol){
+  if(nCache[yol]) return nCache[yol];
+  const bekle=Math.max(0,sonIstek+1100-Date.now()); sonIstek=Date.now()+bekle;
+  if(bekle) await new Promise(r=>setTimeout(r,bekle));
+  const r=await fetch("https://nominatim.openstreetmap.org/"+yol+"&accept-language=tr",{headers:{"Accept":"application/json"}});
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  return nCache[yol]=await r.json();
+}
+async function ilceyeGit(il,ilce){
+  if(!map) return;
+  try{
+    const ad=ilce==="Merkez"?il:ilce;
+    const res=await nomi(`search?format=jsonv2&limit=1&countrycodes=tr&q=${encodeURIComponent(ad+", "+il+", Türkiye")}`);
+    if(!res.length||state.ilce!==ilce||state.il!==il) return;
+    const ll=[+res[0].lat,+res[0].lon];
+    if(ilcePin) ilcePin.remove();
+    ilcePin=L.marker(ll,{title:gor(ilce,il)}).addTo(map).bindTooltip(gor(ilce,il),{permanent:true,direction:"top",offset:[-15,-12]});
+    map.flyTo(ll,11,{duration:.8});
+  }catch(e){}
+}
+
+// ---- Durum
+let state={il:null,ilce:null};
+
+function selectIl(ad,ilce=null,keepStatus=false,ucma=false){
+  state={il:ad,ilce:ilce};
+  $("dfilter").value="";
+  if(!keepStatus) $("status").textContent="";
+  isaretle(ad);
+  if(ilcePin){ilcePin.remove();ilcePin=null}
+  const il=IL.find(i=>i[1]===ad);
+  if(map&&!ucma) map.flyTo([il[2],il[3]],8,{duration:.8});
+  renderPicked();
+  if(ilce&&!ucma) ilceyeGit(ad,ilce);
+}
+
+function renderPicked(){
+  const {il,ilce}=state;
+  $("where").textContent=ilce?`${gor(ilce,il)}, ${il}`:il;
+  const list=ILCE[il];
+  const dl=$("districts"); dl.innerHTML="";
+  if(list){
+    $("hint").textContent=ilce?"Keşfetmek için aşağıdaki düğmeye dokunun.":`${list.length} ilçeden birini seçin.`;
+    $("dnote").hidden=true;
+    const f=$("dfilter"); f.hidden=list.length<=10; const fq=norm(f.value.trim());
+    const shown=list.filter(n=>!fq||norm(gor(n,il)).includes(fq));
+    shown.forEach(n=>{const b=document.createElement("button");b.className="chip"+(n===ilce?" on":"");b.textContent=gor(n,il);b.onclick=()=>{state.ilce=n;renderPicked();ilceyeGit(il,n)};dl.appendChild(b)});
+    if(!shown.length) dl.innerHTML=`<span class="note">Bu adla bir ilçe yok.</span>`;
+  }else{
+    $("hint").textContent=`${il} seçildi.`;
+    $("dnote").hidden=false;
+    $("dnote").textContent="Bu ilin ilçe listesi bulunamadı.";
+  }
+  $("explore").disabled=!ilce;
+  $("clear").hidden=false;
+}
+$("dfilter").addEventListener("input",renderPicked);
+$("clear").onclick=()=>{
+  state={il:null,ilce:null};
+  isaretle(null); if(ilcePin){ilcePin.remove();ilcePin=null} if(map) map.flyTo([39.0,35.2],5,{duration:.8});
+  $("districts").innerHTML=""; $("dfilter").hidden=true; $("dfilter").value=""; $("dnote").hidden=true;
+  $("where").textContent="Henüz seçim yok"; $("hint").textContent="Haritadan bir il seçin veya yukarıdan arayın.";
+  $("explore").disabled=true; $("clear").hidden=true; $("status").textContent="";
+};
+
+// ---- Son baktıklarınız (yalnızca bu cihazda, en fazla 6)
+const SON_KEY="tkr-son-bakilanlar";
+function sonOku(){try{const v=JSON.parse(localStorage.getItem(SON_KEY)||"[]");return Array.isArray(v)?v.filter(x=>ILCE[x.il]&&ILCE[x.il].includes(x.ilce)):[]}catch(e){return[]}}
+function sonKaydet(il,ilce){const a=[{il,ilce},...sonOku().filter(x=>!(x.il===il&&x.ilce===ilce))].slice(0,6);try{localStorage.setItem(SON_KEY,JSON.stringify(a))}catch(e){}renderSon()}
+function renderSon(){
+  const a=sonOku(); $("recentWrap").hidden=!a.length; const r=$("recent"); r.innerHTML="";
+  a.forEach(x=>{const b=document.createElement("button");b.className="chip";b.textContent=`${gor(x.ilce,x.il)}, ${x.il}`;b.onclick=()=>{selectIl(x.il,x.ilce);openDetail()};r.appendChild(b)});
+}
+
+// ---- Arama
+$("q").addEventListener("input",e=>{
+  const q=norm(e.target.value.trim()); const ul=$("results"); ul.innerHTML="";
+  if(q.length<2) return;
+  const out=[];
+  const puan=t=>{const n=norm(t);return n===q?0:n.startsWith(q)?1:n.split(/[\s-]/).some(w=>w.startsWith(q))?2:n.includes(q)?3:9};
+  IL.forEach(i=>{const p=puan(i[1]);if(p<9) out.push({il:i[1],label:i[1],tip:"İl",p})});
+  Object.entries(ILCE).forEach(([il,arr])=>arr.forEach(n=>{const lab=gor(n,il);const p=puan(lab);if(p<9) out.push({il,ilce:n,label:lab,tip:il+" ilçesi",p:p+0.5})}));
+  if(!out.length){ul.innerHTML=`<li><button disabled>Sonuç bulunamadı<small>Yazımı kontrol edin</small></button></li>`;return}
+  out.sort((a,b)=>a.p-b.p||a.label.localeCompare(b.label,"tr"));
+  lastResults=out;
+  const vurgu=t=>{const i=norm(t).indexOf(q);return i<0?t:t.slice(0,i)+"<mark>"+t.slice(i,i+q.length)+"</mark>"+t.slice(i+q.length)};
+  out.slice(0,10).forEach(r=>{
+    const li=document.createElement("li"); const b=document.createElement("button");
+    b.innerHTML=`<span>${vurgu(r.label)}</span><small>${r.tip}</small>`;
+    b.onclick=()=>secSonuc(r);
+    li.appendChild(b); ul.appendChild(li);
+  });
+  if(out.length>10){const li=document.createElement("li");li.className="more";li.textContent=`${out.length-10} sonuç daha var. Aramayı biraz daha yazarak daraltın.`;ul.appendChild(li)}
+});
+let lastResults=[];
+function secSonuc(r){selectIl(r.il,r.ilce||null);$("results").innerHTML="";$("q").value="";$("q").blur();$("picked").scrollIntoView({behavior:"smooth",block:"center"})}
+$("q").addEventListener("keydown",e=>{if(e.key==="Enter"&&lastResults.length&&$("results").children.length){e.preventDefault();secSonuc(lastResults[0])}});
+
+// ---- Konum (saklanmaz)
+function enYakinIl(la,lo){let best=null,bd=1e9;IL.forEach(i=>{const d=(i[2]-la)**2+((i[3]-lo)*0.777)**2;if(d<bd){bd=d;best=i}});return {il:best,uzak:bd>9}}
+$("locate").onclick=()=>{
+  const st=$("status");
+  if(!navigator.geolocation){st.textContent="Bu tarayıcı konum özelliğini desteklemiyor. İl ve ilçeyi aramadan seçebilirsiniz.";return}
+  st.textContent="Konum alınıyor…";
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    const {latitude:la,longitude:lo}=pos.coords;
+    if(map){
+      if(konumPin) konumPin.remove();
+      konumPin=L.circleMarker([la,lo],{radius:8,color:"#fff",weight:3,fillColor:"#2563EB",fillOpacity:1}).addTo(map).bindTooltip("Buradasınız");
+      map.flyTo([la,lo],12,{duration:.8});
+    }
+    st.textContent="Konumunuz bulundu, ilçe belirleniyor…";
+    try{
+      const r=await nomi(`reverse?format=jsonv2&zoom=12&addressdetails=1&lat=${la.toFixed(5)}&lon=${lo.toFixed(5)}`);
+      const a=r.address||{};
+      if(a.country_code&&a.country_code!=="tr"){st.textContent="Türkiye dışında görünüyorsunuz. İl ve ilçeyi aramadan seçebilirsiniz.";return}
+      const ilAdi=(a.province||a.state||"").replace(/\s+ili$/i,"");
+      let il=(IL.find(i=>norm(i[1])===norm(ilAdi))||[])[1];
+      if(!il) il=enYakinIl(la,lo).il[1];
+      const temiz=x=>x.replace(/\s+(ilçesi|merkez)$/i,"");
+      const adaylar=[a.county,a.city_district,a.district,a.municipality,a.town,a.city,a.suburb,a.village].filter(Boolean).map(temiz);
+      let ilce=ILCE[il].find(n=>n!=="Merkez"&&adaylar.some(x=>norm(x)===norm(n)));
+      if(!ilce&&ILCE[il].includes("Merkez")&&adaylar.some(x=>norm(x)===norm(il))) ilce="Merkez";
+      selectIl(il,ilce||null,true,true);
+      st.textContent=ilce?`Konumunuza göre: ${gor(ilce,il)}, ${il}.`:`İliniz: ${il}. İlçe kesin belirlenemedi, lütfen listeden seçin.`;
+    }catch(e){
+      const y=enYakinIl(la,lo);
+      if(y.uzak){st.textContent="Türkiye dışında görünüyorsunuz. İl ve ilçeyi aramadan seçebilirsiniz.";return}
+      selectIl(y.il[1],null,true,true);
+      st.textContent=`İlçe hizmetine ulaşılamadı. Size en yakın il merkezi: ${y.il[1]} (tahmini). İlçeyi listeden seçin.`;
+    }
+  },err=>{
+    st.textContent=err.code===1?"Konum izni verilmedi. Sorun değil, il ve ilçeyi aramadan seçebilirsiniz.":"Konum alınamadı. İl ve ilçeyi aramadan seçebilirsiniz.";
+  },{enableHighAccuracy:true,timeout:15000,maximumAge:0});
+};
+
+// ---- Kategoriler
+const popular=["restoran","otel","tatli","kafe","tarihi","aktivite"];
+popular.forEach(id=>{
+  const k=KAT.find(c=>c.id===id); const b=document.createElement("button");
+  b.className="cat"; b.innerHTML=`<b>${k.ik}</b>${k.ad}`;
+  b.onclick=()=>{ if(!state.ilce){ $("status").textContent="Önce bir ilçe seçin, sonra kategoriye dokunun."; $("picked").scrollIntoView({behavior:"smooth",block:"center"}); return } openDetail(id) };
+  $("cats").appendChild(b);
+});
+
+// ---- Detay sayfası
+function openDetail(catId="restoran"){
+  sonKaydet(state.il,state.ilce);
+  $("dname").textContent=gor(state.ilce,state.il); $("dprov").textContent=state.il;
+  const tabs=$("tabs"); tabs.innerHTML="";
+  KAT.forEach(k=>{const b=document.createElement("button");b.className="chip";b.setAttribute("role","tab");b.dataset.id=k.id;b.textContent=`${k.ik} ${k.ad}`;b.onclick=()=>showCat(k.id);tabs.appendChild(b)});
+  show("detail"); showCat(catId);
+}
+function sosyalPanel(){
+  const ad=state.ilce==="Merkez"?state.il:state.ilce, il=state.il;
+  const asc=t=>norm(t).replace(/[^a-z0-9]/g,"");
+  const a=asc(ad);
+  const etiketler=[...new Set([a,a+"gezi",a+"gezilecekyerler",a+"lezzetleri",a+"tatil"])];
+  const ig=etiketler.map(t=>`<a href="https://www.instagram.com/explore/tags/${encodeURIComponent(t)}/" target="_blank" rel="noopener">#${t}<small>Instagram ↗</small></a>`).join("");
+  const xq=[`${ad} gezilecek yerler`,`${ad} gezi`,`${ad} ${il} etkinlik`,`${ad} yöresel lezzetler`];
+  const xl=xq.map(q=>`<a href="https://x.com/search?q=${encodeURIComponent(q)}&src=typed_query" target="_blank" rel="noopener">“${q}”<small>X ↗</small></a>`).join("");
+  return `<h3>📸 ${gor(state.ilce,il)} için sosyal medya rehberi</h3>
+  <h4>Instagram etiketleri</h4><div class="links">${ig}</div>
+  <h4>X (Twitter) aramaları</h4><div class="links">${xl}</div>
+  <p class="fine">Bu bağlantılar ilgili uygulamada arama sayfasını açar; görmek için giriş yapmanız gerekebilir. Instagram ve X’in resmî erişim kuralları gönderilerin otomatik toplanmasına izin vermediği için içerikler uygulamaya çekilmez.</p>`;
+}
+function showCat(id){
+  const k=KAT.find(c=>c.id===id);
+  document.querySelectorAll("#tabs .chip").forEach(b=>{const on=b.dataset.id===id;b.classList.toggle("on",on);b.setAttribute("aria-selected",on)});
+  if(id==="insta"){$("panel").innerHTML=sosyalPanel();return}
+  $("panel").innerHTML=`<h3>${k.ik} ${k.t}</h3><p>${gor(state.ilce,state.il)} için bu bölüm henüz bağlanmadı. Burada ${KAYNAK[k.a]} gösterilecek.</p><p>Gerçek veri gelene kadar uydurma sonuç gösterilmez.</p><span class="stage">Aşama ${k.a}’da eklenecek</span>`;
+}
+$("explore").onclick=()=>openDetail();
+$("back").onclick=()=>show("home");
+renderSon();
+
+// ---- Alt menü
+function show(v){
+  if(v==="home"&&map)setTimeout(()=>map.invalidateSize(),50);
+  ["home","detail","saved","about"].forEach(x=>$("v-"+x).hidden=x!==v);
+  const navKey=v==="detail"?"home":v;
+  document.querySelectorAll("nav.bottom button").forEach(b=>b.classList.toggle("on",b.dataset.go===navKey));
+  window.scrollTo(0,0);
+}
+document.querySelectorAll("nav.bottom button").forEach(b=>b.onclick=()=>{
+  if(b.dataset.go==="map"){show("home");$("map-anchor").scrollIntoView({behavior:"smooth"});if(map)setTimeout(()=>map.invalidateSize(),300);document.querySelectorAll("nav.bottom button").forEach(x=>x.classList.toggle("on",x===b));return}
+  show(b.dataset.go);
+});
+</script>
+</body>
+</html>
